@@ -24,7 +24,11 @@ all_packages$package_name <- substr(all_packages$package_name, 1,
 row.names(all_packages) <- c(1:nrow(all_packages))
 
 # Save the dataframe as csv
-write.csv(all_packages3, "/Users/davidrosenfeld/Documents/web_scraping_r/all_packages.csv")
+# write.csv(all_packages3, "/Users/davidrosenfeld/Documents/web_scraping_r/all_packages.csv")
+# write.csv(merged_tables, "/Users/davidrosenfeld/Documents/web_scraping_r/merged_tables.csv")
+# write.csv(author_clean, "/Users/davidrosenfeld/Documents/web_scraping_r/author_clean.csv")
+# write.csv(depend_matrix, "/Users/davidrosenfeld/Documents/web_scraping_r/depend_matrix.csv")
+
 
 
 # # Read the dataframe
@@ -46,46 +50,116 @@ get_package_data <- function(name_of_package) {
                                   name_of_package,
                                   "/index.html"))
   
-  # Extract the first table from the stored web page, which includes useful info
-  get_table <- html_table(stored_html)[[1]] %>%
-    data.frame()
+  get_table <- tryCatch(html_table(stored_html)[[1]] %>% data.frame(), 
+           error = function(e) data.frame(X1 = c("Version", "Imports", "Suggests",
+                                                 "Published", "Author"),
+                                          X2 = NA))
   
-  # Remove colons from the first column of the table
-  get_table$X1 <- substr(get_table$X1, 1, nchar(get_table$X1) - 1)
+  if(sum(!is.na(get_table[,2])) > 0) {
+    
+    # Remove colons from the first column of the table
+    get_table$X1 <- substr(get_table$X1, 1, nchar(get_table$X1) - 1)
+    
+    # Create a vector including string "name" and the name of the package
+    name_vector <- c("name", html_text(html_nodes(stored_html, css = "title")))
+    # Clean up vector name
+    name_vector[2] <- substr(name_vector[2], 16, nchar(name_vector[2]))
+    
+    # Create a vector with string "long_name" and the title of the package
+    long_name_vector <- c("long_name", html_text(html_nodes(stored_html, css = "h2")))
+    
+    # Create a vector with string "package_description" and a description of what
+    # the package does
+    package_description_vec <- c("package_description",
+                                 html_text(html_nodes(stored_html, css = "p"))[[1]])
+    
+    # Bind the table with the vectors to create a unique dataframe
+    get_table <- rbind(get_table, name_vector, long_name_vector, package_description_vec)
+    
+    # Name the second column after the package name
+    colnames(get_table)[2] <- name_vector[2]
+    
+  }
   
-  # Create a vector including string "name" and the name of the package
-  name_vector <- c("name", html_text(html_nodes(stored_html, css = "title")))
-  # Clean up vector name
-  name_vector[2] <- substr(name_vector[2], 16, nchar(name_vector[2]))
-  
-  # Create a vector with string "long_name" and the title of the package
-  long_name_vector <- c("long_name", html_text(html_nodes(stored_html, css = "h2")))
-  
-  # Create a vector with string "package_description" and a description of what
-  # the package does
-  package_description_vec <- c("package_description",
-                               html_text(html_nodes(stored_html, css = "p"))[[1]])
-  
-  # Bind the table with the vectors to create a unique dataframe
-  get_table <- rbind(get_table, name_vector, long_name_vector, package_description_vec)
-  
-  # Name the second column after the package name
-  colnames(get_table)[2] <- name_vector[2]
+  # # Extract the first table from the stored web page, which includes useful info
+  # get_table <- html_table(stored_html)[[1]] %>%
+  #   data.frame()
+  # 
+  # # Remove colons from the first column of the table
+  # get_table$X1 <- substr(get_table$X1, 1, nchar(get_table$X1) - 1)
+  # 
+  # # Create a vector including string "name" and the name of the package
+  # name_vector <- c("name", html_text(html_nodes(stored_html, css = "title")))
+  # # Clean up vector name
+  # name_vector[2] <- substr(name_vector[2], 16, nchar(name_vector[2]))
+  # 
+  # # Create a vector with string "long_name" and the title of the package
+  # long_name_vector <- c("long_name", html_text(html_nodes(stored_html, css = "h2")))
+  # 
+  # # Create a vector with string "package_description" and a description of what
+  # # the package does
+  # package_description_vec <- c("package_description",
+  #                              html_text(html_nodes(stored_html, css = "p"))[[1]])
+  # 
+  # # Bind the table with the vectors to create a unique dataframe
+  # get_table <- rbind(get_table, name_vector, long_name_vector, package_description_vec)
+  # 
+  # # Name the second column after the package name
+  # colnames(get_table)[2] <- name_vector[2]
   
   return(get_table)
 }
 
+stored_html <- read_html(paste0("https://cran.r-project.org/web/packages/", 
+                                "dataRetrieval",
+                                "/index.html"))
+
+get_table <- html_table(stored_html)[[1]] %>%
+  data.frame()
+
+tryCatch(html_table(stored_html)[[1]], 
+         error = function(e) data.frame(X1 = c("Version", "Imports", "Suggests",
+                                               "Published", "Author"),
+                                        name_of_package = NA))
+
+for(i in seq_along(A)){
+  tryCatch(print(A[[i]][[2]]),
+           error = function(e) print(NA))
+}
+
+
+
+
+first_thousand_packages <- create_packages_dataframe(all_packages$package_name[1:1000], 5)
+
+write.csv(first_thousand_packages, "/Users/davidrosenfeld/Documents/web_scraping_r/first_thousand_packages.csv")
+
+first_thousands <- read.csv("/Users/davidrosenfeld/Documents/web_scraping_r/first_thousands.csv")
+
+
+
+new_package_list <- all_packages$package_name[9682:12010]
 # Create an empty list to fill with package data
 combined_tables <- list()
 # Loop over package names. For each, create dataframe using the get_package_data
 # function above, and add it to the combined_tables list.
 # Pause for 5 seconds between every request
-for(i in 1:length(all_packages$package_name[1:10])) {
+for(i in 1:length(new_package_list)) {
   
-  combined_tables[[i]] <- get_package_data(all_packages$package_name[i])
+  combined_tables[[i]] <- get_package_data(new_package_list[i])
   Sys.sleep(5)
   
 }
+
+closeAllConnections()
+
+merged_tables <- reduce(combined_tables, full_join, by = "X1")
+
+up_to_now <- full_join(up_to_now, merged_tables, by = "X1")
+
+write.csv(up_to_now, "/Users/davidrosenfeld/Documents/web_scraping_r/up_to_now.csv",
+          row.names = FALSE)
+
 
 # Full join all the tables in the list, but maintaining all the rows (which is why 
 # I use full_join rather that left_join). Not all packages include the same info,
@@ -168,5 +242,58 @@ author_clean <- str_replace_all(author_clean, pattern = fixed("and "),
 author_clean <- str_split(author_clean, pattern = or(fixed(", "), 
                                                      fixed(", and ")), 
                           simplify = TRUE)
+
+
+
+
+
+#########
+# Get number of downloads for each package
+library(cranlogs)
+
+test <- cran_downloads(packages = all_packages$package_name[1:3], 
+                       from = "1999-01-01", to = "2017-12-31")
+
+library(reshape2)
+test3 <- dcast(test, date ~ package, value.var = "count")
+test2 <- cran_downloads(packages = "ggplot2", from = "1999-01-01", to = "2017-12-31")
+
+test$count %>%
+  sum()
+test %>%
+ggplot(aes(x = date, y = count, col = package)) +
+  geom_line()
+
+c(1:100) + (100 * 119)
+
+cran_logs <- data.frame(matrix(NA, nrow = 6940, ncol = 12010))
+row.names(cran_logs) <- test3$date
+colnames(cran_logs) <- all_packages$package_name
+
+for(i in 0:119) {
+  
+  selector <- c(1:100) + (100 * i)
+  
+  latest_logs <- cran_downloads(packages = all_packages$package_name[selector], 
+                              from = "1999-01-01", to = "2017-12-31")
+  
+  latest_logs <- dcast(latest_logs, date ~ package, value.var = "count")
+  
+  cran_logs[, selector] <- latest_logs[2:101]
+  
+  Sys.sleep(5)
+  
+}
+
+write.csv(cran_logs, "/Users/davidrosenfeld/Documents/web_scraping_r/cran_logs.csv")
+
+
+
+
+cran_logs <- cran_downloads(packages = all_packages$package_name, 
+                       from = "1999-01-01", to = "2017-12-31")
+
+
+
 
 
