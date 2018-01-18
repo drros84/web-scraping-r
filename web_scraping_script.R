@@ -167,6 +167,10 @@ write.csv(up_to_now, "/Users/davidrosenfeld/Documents/web_scraping_r/up_to_now.c
 # all dataframes in the list
 merged_tables <- reduce(combined_tables, full_join, by = "X1")
 
+
+
+
+
 # Extract data from the "Depends" column and the package name. This will give us 
 # the dependencies for each package
 dependencies <- merged_tables[merged_tables$X1 %in% c("Depends", "name"), ] %>%
@@ -190,8 +194,11 @@ test <- str_replace_all(depend_matrix, pattern = or(START %R% " ", " " %R% END),
   as.matrix(nrow = nrow(depend_matrix), ncol = ncol(depend_matrix), byrow = FALSE)
 
 
+
+
+
 # Extract author names for each package
-author_matrix <- merged_tables[merged_tables$X1 %in% c("Author", "name"), ] %>%
+author_matrix <- up_to_now[up_to_now$X1 %in% c("Author", "name"), ] %>%
   t() 
 colnames(author_matrix) <- author_matrix[1, ]
 author_matrix <- author_matrix[-1, ]
@@ -225,26 +232,88 @@ author_types <- str_extract_all(author_matrix$Author, pattern = OPEN_BRACKET %R%
                simplify = TRUE)
 
 # Remove the square brackets and their content from the author data
-author_clean <- str_replace_all(author_matrix$Author, pattern = SPACE %R% 
-                                  OPEN_BRACKET %R% one_or_more(WRD) %R% 
-                  zero_or_more(fixed(", ")) %R% zero_or_more(WRD) %R% CLOSE_BRACKET,
-                replacement = "")
+# author_clean <- str_replace_all(author_matrix$Author, pattern = SPACE %R% 
+#                                   OPEN_BRACKET %R% one_or_more(WRD) %R% 
+#                   zero_or_more(fixed(", ")) %R% zero_or_more(WRD) %R% 
+#                     zero_or_more(fixed(", ")) %R% zero_or_more(WRD) %R%CLOSE_BRACKET,
+#                 replacement = "")
+
+# Remove the square brackets and their content from the author data
+author_clean <- str_replace_all(author_matrix$Author, 
+                                pattern = "\\[.*\\]",
+                                replacement = "")
+
+
+author_clean <- gsub( " *\\(.*?\\) *", "", author_clean)
 
 # Remove the "\n" that seem to have appeared after the previous operation
-author_clean <- str_replace_all(author_clean, pattern = fixed("\n "),
+author_clean <- str_replace_all(author_clean, pattern = or(fixed("\n "),
+                                                           fixed("and"),
+                                                           "Inc" %R% zero_or_more(".")
+                                                           ),
                                 replacement = "")
 
-# Remove the "and" string
-author_clean <- str_replace_all(author_clean, pattern = fixed("and "),
-                                replacement = "")
+author_clean <- str_replace_all(author_clean, pattern = "with" %R% one_or_more(SPACE) %R%
+                                  "contributions" %R% one_or_more(SPACE) %R% "by", 
+                                replacement = ",")
 
-# split the author data based on commas and the ", and" string
-author_clean <- str_split(author_clean, pattern = or(fixed(", "), 
-                                                     fixed(", and ")), 
+# split the author data based on commas 
+author_clean <- str_split(author_clean, pattern = or(zero_or_more(SPACE) %R%
+                                                       or(",", ";") %R% zero_or_more(SPACE),
+                                                     # fixed(" , "),
+                                                     # fixed(", "), 
+                                                     # fixed(","),
+                                                     # " with contributions " %R%
+                                                     #   or("by", "from"),
+                                                     # fixed(" with contributions by "),
+                                                     zero_or_more(",") %R%
+                                                       zero_or_more(SPACE) %R%
+                                                       "and"
+                                                     ), 
                           simplify = TRUE)
 
 
 
+# Add package names as row.names
+row.names(author_clean) <- all_packages$package_name
+
+# Transpose matrix (so columns are now packages, rows are authors),
+# then melt to create author-package pairs,
+# remove the first column,
+# remove empty cells
+author_clean <- author_clean %>%
+  t() %>%
+  melt() %>%
+  select(Var2, value) %>%
+  filter(value != "")
+
+colnames(author_clean) <- c("package_name", "author")
+
+author_clean$author <- str_replace_all(author_clean$author, pattern = or(START %R% SPACE,
+                                                           SPACE %R% END),
+                                replacement = "")
+
+
+author_clean$author <- str_replace_all(author_clean$author, pattern = SPACE %R% SPACE,
+                                       replacement = " ")
+
+# ranked_packages <- cran_logs %>% 
+#   colSums() %>%
+#   sort(decreasing = TRUE)
+# 
+# ranked_packages <- data.frame(package_name = names(ranked_packages),
+#                               n_downloads = ranked_packages)
+
+author_downloads <- author_clean %>%
+  left_join(ranked_packages, by = "package_name") %>%
+  group_by(author) %>%
+  summarise(n_downloads = sum(n_downloads), n_packages = n()) %>%
+  arrange(desc(n_downloads))
+
+author_downloads <- author_downloads %>%
+  mutate(rank = row.names(author_downloads))
+
+str_view_all(author_downloads$author, pattern = "Hadley Wickham", match = TRUE)
 
 
 #########
@@ -292,6 +361,14 @@ write.csv(cran_logs, "/Users/davidrosenfeld/Documents/web_scraping_r/cran_logs.c
 
 cran_logs <- cran_downloads(packages = all_packages$package_name, 
                        from = "1999-01-01", to = "2017-12-31")
+
+
+ranked_packages <- cran_logs %>% 
+  colSums() %>%
+  sort(decreasing = TRUE)
+
+  
+
 
 
 
