@@ -253,23 +253,25 @@ author_clean <- str_replace_all(author_clean, pattern = or(fixed("\n "),
                                                            ),
                                 replacement = "")
 
-author_clean <- str_replace_all(author_clean, pattern = "with" %R% one_or_more(SPACE) %R%
-                                  "contributions" %R% one_or_more(SPACE) %R% "by", 
+# Replace  all combinations of "with contributions by" by a comma separator
+author_clean <- str_replace_all(author_clean, 
+                                pattern = or(zero_or_more("[Ww]ith"), 
+                                             zero_or_more("[Ww]ith the"),
+                                             zero_or_more("[Aa]dditional"), 
+                                             zero_or_more("[Cc]onsiderable"))  
+                                %R% zero_or_more(SPACE) %R%
+                                  "contribution" %R% zero_or_more("s") %R% 
+                                  one_or_more(SPACE) %R% 
+                                  or(zero_or_more("by"), 
+                                     zero_or_more("from"), 
+                                     zero_or_more("of")), 
                                 replacement = ",")
 
 # split the author data based on commas 
-author_clean <- str_split(author_clean, pattern = or(zero_or_more(SPACE) %R%
-                                                       or(",", ";") %R% zero_or_more(SPACE),
-                                                     # fixed(" , "),
-                                                     # fixed(", "), 
-                                                     # fixed(","),
-                                                     # " with contributions " %R%
-                                                     #   or("by", "from"),
-                                                     # fixed(" with contributions by "),
-                                                     zero_or_more(",") %R%
-                                                       zero_or_more(SPACE) %R%
-                                                       "and"
-                                                     ), 
+author_clean <- str_split(author_clean, pattern = zero_or_more(SPACE) %R%
+                                                       or(",", ";") %R% 
+                                                       zero_or_more(SPACE) %R% 
+                                                       zero_or_more("and"), 
                           simplify = TRUE)
 
 
@@ -289,8 +291,11 @@ author_clean <- author_clean %>%
 
 colnames(author_clean) <- c("package_name", "author")
 
-author_clean$author <- str_replace_all(author_clean$author, pattern = or(START %R% SPACE,
-                                                           SPACE %R% END),
+# Get rid of spaces at the start and end of names, and quotation marks at start and end
+author_clean$author <- str_replace_all(author_clean$author, 
+                                       pattern = zero_or_more(SPACE) %R%
+                                         or(START %R% or(SPACE, "'"), or(SPACE, "'") %R% 
+                                              zero_or_more(SPACE) %R% END),
                                 replacement = "")
 
 
@@ -313,7 +318,7 @@ author_downloads <- author_clean %>%
 author_downloads <- author_downloads %>%
   mutate(rank = row.names(author_downloads))
 
-str_view_all(author_downloads$author, pattern = "Hadley Wickham", match = TRUE)
+str_view_all(author_downloads$author, pattern = "Grot", match = TRUE)
 
 
 #########
